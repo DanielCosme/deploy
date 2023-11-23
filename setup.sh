@@ -1,28 +1,50 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 
+# Set the root directory
 DIR=`dirname "$(readlink -f "$0")"`
+
+# Include functions and default settings
+source $DIR/src/functions.sh
 source $DIR/settings.sh
 
-# Setup deploy user
-ssh_as_root 'bash -s' <<-STDIN || fail "Adding $USER"
-  set -euo pipefail
-  useradd $USER
-  su - $USER -c 'mkdir ~/.ssh'
-  su - $USER -c 'touch ~/.ssh/authorized_keys'
-  cat /root/.ssh/authorized_keys >> /home/$USER/.ssh/authorized_keys
-  chmod 700 /home/$USER/.ssh
-  chmod 600 /home/$USER/.ssh/authorized_keys
-  usermod -a -G wheel $USER
-  passwd -l root
-STDIN
+USAGE="
+Usage:
 
-# Disable root
-ssh_as_user 'bash -s' <<-STDIN || fail "Disabling root"
-  sudo chage -E 0 root
-STDIN
+  $0
+  $0 -u UNIT -s STEP
 
-# Install web server
-ssh_as_user 'bash -s' <<-STDIN || fail "Installing NGINX"
-  sudo dnf install -y nginx
-STDIN
+Options:
+
+  -u UNIT    run only a given unit
+  -s STEP    run only a given step
+  -v         run in the verbose mode"
+
+#
+# Process script arguments
+#
+while getopts ":u:s:vh" opt; do
+  case $opt in
+    u)
+      RUN_UNIT=$OPTARG
+      ;;
+    s)
+      RUN_STEP=$OPTARG
+      ;;
+    v)
+      VERBOSE=true
+      ;;
+    h)
+      echo "$USAGE"
+      exit 0
+      ;;
+    \?)
+      echo "$OPTARG is not a valid option."
+      echo "$USAGE"
+      exit 1
+      ;;
+  esac
+done
+
+# After setting the defaults, run your SSH commands
+ssh root@$SERVER -p $PORT $SSH_OPTIONS "dnf update"
